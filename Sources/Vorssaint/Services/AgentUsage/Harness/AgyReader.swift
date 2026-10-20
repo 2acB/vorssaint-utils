@@ -40,8 +40,9 @@ struct AgyReader: AgentHarnessReader {
                 let thinking = obj.string("thinking") ?? ""
                 let hasTools = obj.hasItems("tool_calls")
 
-                let outputTokens = max(1, content.count / 4)
+                let contentTokens = max(1, content.count / 4)
                 let reasoningTokens = thinking.isEmpty ? 0 : max(1, thinking.count / 4)
+                let outputTokens = contentTokens + reasoningTokens
                 let inputTokens = max(10, (content.count + thinking.count) / 2)
                 let tokens = AgentTokens(input: inputTokens, cacheWrite: 0, cacheRead: 0,
                                          output: outputTokens, reasoning: reasoningTokens)
