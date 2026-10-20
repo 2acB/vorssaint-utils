@@ -82,7 +82,7 @@ struct NotchAgentsSettingsControls: View {
             // The resting island shows this allowance whatever the live
             // reading, and the live reading uses it when it shows a limit.
             SettingsMenuRow(symbol: "rectangle.topthird.inset.filled", title: text.limitFocus, selection: $limitFocus) {
-                ForEach(NotchAgentLimitFocus.allCases) { focus in
+                ForEach([NotchAgentLimitFocus.session, .weekly, .geminiSession, .geminiWeekly, .claudeGptSession, .claudeGptWeekly, .mostUsed]) { focus in
                     Text(text.limitFocus(focus)).tag(focus.rawValue)
                 }
             }

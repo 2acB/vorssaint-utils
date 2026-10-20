@@ -160,10 +160,12 @@ struct NotchAgentStrings {
     func limitFocus(_ focus: NotchAgentLimitFocus) -> String {
         switch focus {
         case .mostUsed: return mostUsed
-        case .session: return session
+        case .session: return "5-Hour Session"
         case .weekly: return weekly
-        case .gemini: return "Gemini"
-        case .claudeGpt: return "Claude & GPT"
+        case .geminiSession, .gemini: return "Gemini (5-Hour)"
+        case .geminiWeekly: return "Gemini (Weekly)"
+        case .claudeGptSession, .claudeGpt: return "Claude & GPT (5-Hour)"
+        case .claudeGptWeekly: return "Claude & GPT (Weekly)"
         }
     }
 }

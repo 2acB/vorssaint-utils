@@ -48,7 +48,7 @@ enum NotchAgentLimitDisplay: String, CaseIterable, Identifiable {
 
 /// Which allowance the closed island shows.
 enum NotchAgentLimitFocus: String, CaseIterable, Identifiable {
-    case mostUsed, session, weekly, gemini, claudeGpt
+    case session, weekly, geminiSession, geminiWeekly, claudeGptSession, claudeGptWeekly, mostUsed, gemini, claudeGpt
     var id: String { rawValue }
 }
 
@@ -137,38 +137,69 @@ enum NotchAgentSupport {
     /// The allowance the closed island shows: the window the person chose,
     /// or the one closest to running out while the account reports no such
     /// window. A model's own allowance is never the chosen one.
-    static func focusedLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
-        chosenLimit(limits, focus: focus, now: now) ?? AgentLimitSupport.binding(limits, now: now)
+    static func focusedLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, model: String? = nil, now: Date) -> AgentLimitWindow? {
+        chosenLimit(limits, focus: focus, model: model, now: now) ?? AgentLimitSupport.binding(limits, now: now)
     }
 
     /// The plan-wide window of the chosen kind; nil for the most used one or
     /// while the account reports no such window.
-    private static func chosenLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
+    private static func chosenLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, model: String? = nil, now: Date) -> AgentLimitWindow? {
         guard let limits else { return nil }
         switch focus {
         case .mostUsed:
             return nil
-        case .session:
+        case .session, .geminiSession, .claudeGptSession, .gemini, .claudeGpt:
             let sessions = limits.windows.filter { $0.kind == .session }
+            if focus == .geminiSession || focus == .gemini {
+                if let w = sessions.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("gemini") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            } else if focus == .claudeGptSession || focus == .claudeGpt {
+                if let w = sessions.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("claude") || ($0.scope ?? "").localizedCaseInsensitiveContains("gpt") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            }
+            if let model {
+                let m = model.lowercased()
+                if m.contains("gemini"),
+                   let w = sessions.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("gemini") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+                if (m.contains("claude") || m.contains("gpt")),
+                   let w = sessions.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("claude") || ($0.scope ?? "").localizedCaseInsensitiveContains("gpt") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            }
             if let planWide = sessions.first(where: { $0.scope == nil }) {
                 return AgentLimitSupport.current(planWide, at: now)
             }
             return sessions.map { AgentLimitSupport.current($0, at: now) }.max { $0.usedPercent < $1.usedPercent }
-        case .weekly:
+        case .weekly, .geminiWeekly, .claudeGptWeekly:
             let weeklies = limits.windows.filter { $0.kind == .weekly }
+            if focus == .geminiWeekly {
+                if let w = weeklies.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("gemini") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            } else if focus == .claudeGptWeekly {
+                if let w = weeklies.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("claude") || ($0.scope ?? "").localizedCaseInsensitiveContains("gpt") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            }
+            if let model {
+                let m = model.lowercased()
+                if m.contains("gemini"),
+                   let w = weeklies.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("gemini") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+                if (m.contains("claude") || m.contains("gpt")),
+                   let w = weeklies.first(where: { ($0.scope ?? "").localizedCaseInsensitiveContains("claude") || ($0.scope ?? "").localizedCaseInsensitiveContains("gpt") }) {
+                    return AgentLimitSupport.current(w, at: now)
+                }
+            }
             if let planWide = weeklies.first(where: { $0.scope == nil }) {
                 return AgentLimitSupport.current(planWide, at: now)
             }
             return weeklies.map { AgentLimitSupport.current($0, at: now) }.max { $0.usedPercent < $1.usedPercent }
-        case .gemini:
-            let geminiWindows = limits.windows.filter { ($0.scope ?? "").localizedCaseInsensitiveContains("gemini") }
-            return geminiWindows.map { AgentLimitSupport.current($0, at: now) }.max { $0.usedPercent < $1.usedPercent }
-        case .claudeGpt:
-            let claudeWindows = limits.windows.filter {
-                let s = ($0.scope ?? "").localizedCaseInsensitiveContains("claude") || ($0.scope ?? "").localizedCaseInsensitiveContains("gpt")
-                return s
-            }
-            return claudeWindows.map { AgentLimitSupport.current($0, at: now) }.max { $0.usedPercent < $1.usedPercent }
         }
     }
 
@@ -252,7 +283,8 @@ enum NotchAgentSupport {
         case .elapsedAndLimit:
             let time = elapsed()
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return time }
+                  let window = focusedLimit(snapshot.limits[provider], focus: focus,
+                                            model: live.first(where: { $0.provider == provider })?.model, now: now) else { return time }
             let percent = AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
             return "\(time) · \(percent)"
         case .tokens:
@@ -263,7 +295,8 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
+                  let window = focusedLimit(snapshot.limits[provider], focus: focus,
+                                            model: live.first(where: { $0.provider == provider })?.model, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
     }
