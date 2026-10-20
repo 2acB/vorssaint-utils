@@ -150,6 +150,7 @@ struct NotchAgentStrings {
     func readout(_ readout: NotchAgentReadout) -> String {
         switch readout {
         case .elapsed: return readoutElapsed
+        case .elapsedAndLimit: return "\(readoutElapsed) & \(readoutLimit)"
         case .tokens: return readoutTokens
         case .cost: return apiValue.prefix(1).uppercased() + apiValue.dropFirst()
         case .limit: return readoutLimit

@@ -325,6 +325,23 @@ private struct NotchAgentStripSample: View {
                                               tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
                                               cost: 4.56)]
         }
+        if snapshot.limits[provider] == nil {
+            snapshot.limits[provider] = AgentLimits(
+                provider: provider,
+                windows: [
+                    AgentLimitWindow(
+                        id: "example",
+                        kind: .session,
+                        minutes: 300,
+                        scope: nil,
+                        usedPercent: 35,
+                        resetsAt: now.addingTimeInterval(7200)
+                    )
+                ],
+                observedAt: now,
+                source: .account
+            )
+        }
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
     }
 }

@@ -37,20 +37,36 @@ struct NotchAgentStrip: View {
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
-        let iconInset = !geometry.compactActivityUsesFooter
-            ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        let companion = service.compactCompanion
+        let iconInset: CGFloat = {
+            if let companion { return NotchCompanionMark.inset(companion, geometry: geometry) }
+            return !geometry.compactActivityUsesFooter
+                ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        }()
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
-            Button { service.openActivity(.agents) } label: {
+            Button {
+                if let companion {
+                    if companion == .music { service.openActivity(.music) }
+                    else if companion == .calendar { service.openCountdownEvent() }
+                    else { service.openActivity(companion.module) }
+                } else {
+                    service.openActivity(.agents)
+                }
+            } label: {
                 HStack(spacing: 2) {
                     if geometry.compactActivityWingWidth >= 28 {
-                        ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
-                        if needsApproval {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .font(.system(size: iconSize * 0.95, weight: .bold))
-                                .foregroundStyle(Color.orange)
-                                .transition(.scale.combined(with: .opacity))
+                        if let companion {
+                            NotchCompanionMark(companion: companion, geometry: geometry)
+                        } else {
+                            ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                            if needsApproval {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.system(size: iconSize * 0.95, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
                         }
                     }
                 }
@@ -59,6 +75,8 @@ struct NotchAgentStrip: View {
                        alignment: .leading)
                 .contentShape(Rectangle())
             }
+            .accessibilityLabel(companion.map { NotchCompanionMark.label($0, language: l10n.language) }
+                                ?? working.map(\.displayName).joined(separator: ", "))
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             Button { service.openActivity(.agents) } label: {
                 Group {

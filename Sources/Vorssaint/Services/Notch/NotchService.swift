@@ -592,10 +592,16 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// A single activity never borrows another activity's wing implicitly.
+    /// Supported pairs can share the closed island: either explicitly chosen,
+    /// or automatically when two tasks are active side by side.
     var compactCompanion: NotchCompactActivity? {
-        guard let activity = compactActivity, activity == activitySelection.preferred else { return nil }
-        return activitySelection.companion(available: compactCompanions(of: activity))
+        guard let activity = compactActivity else { return nil }
+        let companions = compactCompanions(of: activity)
+        if let chosen = activitySelection.companion(available: companions) { return chosen }
+        if activitySelection.preferred == nil || activity == activitySelection.preferred {
+            return companions.first
+        }
+        return nil
     }
 
     private var compactActivityIsVisible: Bool {
@@ -770,9 +776,16 @@ final class NotchService: ObservableObject {
         let working = Set(live.map(\.provider)).count
         let mark = CGFloat(working > 1 ? 11 : 14)
         let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
+        var marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
             + (needsApproval ? 16 : 0)
+        if let companion = compactCompanion {
+            if companion == .music {
+                marks = max(marks, geometry.compactMusicArtworkSide + geometry.compactMusicArtworkInset)
+            } else {
+                marks = max(marks, 28)
+            }
+        }
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -1023,6 +1036,7 @@ final class NotchService: ObservableObject {
             let playback = shown?.playback ?? live
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
+                                       companion: companion, workingAgents: working,
                                        geometry: geometry)
         case .timer:
             let timer = NotchTimerService.shared
@@ -1037,7 +1051,9 @@ final class NotchService: ObservableObject {
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
                                                          focus: NotchAgentSupport.limitFocus(), now: Date())
-            return layout.agentSurface(reading: reading, working: working, geometry: geometry)
+            return layout.agentSurface(reading: reading, working: working, companion: companion,
+                                       downloadPercent: download?.fraction != nil,
+                                       geometry: geometry, language: language)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
             if let companion {

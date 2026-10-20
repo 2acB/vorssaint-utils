@@ -33,12 +33,12 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
 
 /// What the closed island shows beside the camera while an agent works.
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
-    case elapsed, tokens, cost, limit
+    case elapsed, elapsedAndLimit, tokens, cost, limit
     var id: String { rawValue }
 
     /// Tokens and cost change only with a new snapshot. Limits still need
     /// the clock: an allowance can renew, or show elapsed time while unknown.
-    var advancesWithClock: Bool { self == .elapsed || self == .limit }
+    var advancesWithClock: Bool { self == .elapsed || self == .limit || self == .elapsedAndLimit }
 }
 
 enum NotchAgentLimitDisplay: String, CaseIterable, Identifiable {
@@ -249,6 +249,12 @@ enum NotchAgentSupport {
         switch readout {
         case .elapsed:
             return elapsed()
+        case .elapsedAndLimit:
+            let time = elapsed()
+            guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
+                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return time }
+            let percent = AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
+            return "\(time) · \(percent)"
         case .tokens:
             // What the agent wrote, the count its own window shows; the
             // context it reads again on every call is in the cost.
