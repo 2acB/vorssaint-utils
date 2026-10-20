@@ -475,7 +475,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.agy, ".gemini/antigravity-cli/brain"), (.agy, ".gemini/antigravity-ide/brain"), (.agy, ".gemini/antigravity/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +500,9 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
+        if provider == .agy {
+            return path.hasSuffix("/.system_generated/logs/transcript.jsonl") || path.hasSuffix("/transcript.jsonl")
+        }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -580,6 +584,12 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        if provider == .agy {
+            let parts = path.split(separator: "/")
+            if let brainIdx = parts.firstIndex(of: "brain"), brainIdx + 1 < parts.count {
+                state.session = String(parts[brainIdx + 1])
+            }
+        }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -756,6 +766,14 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            if root.provider == .agy {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [])) ?? []
+                for session in sessions {
+                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"), from: root)
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

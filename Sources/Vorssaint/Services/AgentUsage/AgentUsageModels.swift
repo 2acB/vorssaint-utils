@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, agy
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .agy: return "Antigravity"
         }
     }
 
@@ -25,10 +26,11 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .agy: return "sparkles"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the provider records a plan allowance in its local logs or account CLI.
     var reportsLimits: Bool { self != .copilot }
 }
 
@@ -112,6 +114,10 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let resetsAt: Date?
     /// A presentation estimate, never a deadline for clearing usage or alerts.
     var estimatedResetsAt: Date? = nil
+    /// Display name of the bucket (e.g. "Weekly Limit Remaining", "Five Hour Limit Remaining")
+    var name: String? = nil
+    /// Group description or models within group
+    var detail: String? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }

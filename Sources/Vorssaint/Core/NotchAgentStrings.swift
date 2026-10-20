@@ -161,6 +161,8 @@ struct NotchAgentStrings {
         case .mostUsed: return mostUsed
         case .session: return session
         case .weekly: return weekly
+        case .gemini: return "Gemini"
+        case .claudeGpt: return "Claude & GPT"
         }
     }
 }
