@@ -56,15 +56,24 @@ struct AgyReader: AgentHarnessReader {
                                               session: state.session,
                                               tokens: tokens, cost: cost, savings: savings)
 
+                let rawLine = String(decoding: line, as: UTF8.self)
+                let needsApproval = rawLine.contains("\"ask_question\"")
+                    || rawLine.contains("\"confirm\"")
+                    || obj.string("status") == "WAITING_FOR_USER"
+
                 if hasTools {
                     state.turnOpen = true
-                    return [.turnActive(date), .usage(key: key, record: record, billable: billable)]
+                    let entry: AgentLogEntry = needsApproval ? .turnNeedsApproval(date) : .turnActive(date)
+                    return [entry, .usage(key: key, record: record, billable: billable)]
                 } else {
                     state.turnOpen = false
                     return [.usage(key: key, record: record, billable: billable), .turnEnded(date, completed: true, duration: nil)]
                 }
             } else if state.turnOpen {
-                // Tool output from previous step
+                let rawLine = String(decoding: line, as: UTF8.self)
+                if rawLine.contains("\"ask_question\"") || rawLine.contains("\"confirm\"") {
+                    return [.turnNeedsApproval(date)]
+                }
                 return [.turnActive(date)]
             }
         }

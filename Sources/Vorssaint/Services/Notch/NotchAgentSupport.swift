@@ -325,8 +325,10 @@ enum NotchAgentSupport {
         return rows
     }
 
-    static func height(of row: [NotchAgentTile]) -> CGFloat {
-        if row.contains(where: { $0.card == .limits && $0.provider == .agy }) { return agyLimitsCardHeight }
+    static func height(of row: [NotchAgentTile], agyFilter: String = "all") -> CGFloat {
+        if row.contains(where: { $0.card == .limits && $0.provider == .agy }) {
+            return agyFilter == "all" ? agyLimitsCardHeight : 108
+        }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
@@ -349,9 +351,9 @@ enum NotchAgentSupport {
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
-    static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
+    static func contentHeight(_ rows: [[NotchAgentTile]], agyFilter: String = "all") -> CGFloat {
         guard !rows.isEmpty else { return 0 }
-        return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return rows.map { height(of: $0, agyFilter: agyFilter) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
 }
 

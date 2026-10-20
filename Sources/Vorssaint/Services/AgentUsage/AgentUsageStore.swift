@@ -93,7 +93,8 @@ final class AgentUsageStore {
                 waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
-                                               model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                               model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                               needsApproval: false)
             case .turnContext(let model, let project):
                 guard tracksTurns else { continue }
                 if var turn = turns[file] {
@@ -111,10 +112,30 @@ final class AgentUsageStore {
                 let moment = date ?? modified
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
+                    turn.needsApproval = false
                     turns[file] = turn
                 } else {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
-                                                   model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: false)
+                }
+            case .turnNeedsApproval(let date):
+                guard tracksTurns else { continue }
+                settled[file] = nil
+                let moment = date ?? modified
+                if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
+                    turn.lastActivity = max(turn.lastActivity, moment)
+                    if !turn.needsApproval {
+                        turn.needsApproval = true
+                        events.append(.needsApproval(provider: provider, project: turn.project))
+                    }
+                    turns[file] = turn
+                } else {
+                    let turn = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: true)
+                    turns[file] = turn
+                    events.append(.needsApproval(provider: provider, project: ""))
                 }
             case .turnSettled(let date):
                 guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }

@@ -156,6 +156,7 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    var needsApproval: Bool = false
 }
 
 /// Something worth a moment in the closed island.
@@ -164,4 +165,5 @@ enum AgentUsageEvent: Equatable {
     case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
     case budgetReached(spent: Double, budget: Double)
+    case needsApproval(provider: AgentProvider, project: String)
 }

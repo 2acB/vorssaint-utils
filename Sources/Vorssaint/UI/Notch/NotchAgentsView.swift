@@ -19,6 +19,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsAgy) private var agy = true
+    @AppStorage(DefaultsKey.notchAgentsAgyWindowFilter) private var agyFilter = "all"
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -60,7 +61,7 @@ struct NotchAgentsView: View {
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
+                    if NotchAgentSupport.contentHeight(rows, agyFilter: agyFilter) > size.height + 0.5 {
                         ScrollView { grid(rows, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
@@ -101,7 +102,7 @@ struct NotchAgentsView: View {
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
                 }
-                .frame(height: NotchAgentSupport.height(of: row))
+                .frame(height: NotchAgentSupport.height(of: row, agyFilter: agyFilter))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -468,6 +469,7 @@ private struct NotchAgentAgyLimitsCard: View {
     let failure: AgentAgyServer.Failure?
     let refresh: () -> Void
     @Environment(\.locale) private var locale
+    @AppStorage(DefaultsKey.notchAgentsAgyWindowFilter) private var windowFilter = "all"
 
     private var limits: AgentLimits? {
         snapshot.limits[.agy]
@@ -475,8 +477,19 @@ private struct NotchAgentAgyLimitsCard: View {
 
     private var groups: [(name: String, detail: String?, windows: [AgentLimitWindow])] {
         guard let windows = limits?.windows, !windows.isEmpty else { return [] }
+        let filtered: [AgentLimitWindow]
+        switch windowFilter {
+        case "5h":
+            filtered = windows.filter { $0.kind == .session }
+        case "week":
+            filtered = windows.filter { $0.kind == .weekly }
+        default:
+            filtered = windows
+        }
+        guard !filtered.isEmpty else { return [] }
+
         var result: [(name: String, detail: String?, windows: [AgentLimitWindow])] = []
-        for window in windows {
+        for window in filtered {
             let scopeName = window.scope ?? "Antigravity Models"
             if let idx = result.firstIndex(where: { $0.name == scopeName }) {
                 result[idx].windows.append(window)
@@ -492,7 +505,15 @@ private struct NotchAgentAgyLimitsCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 NotchAgentCardHeader(title: "Antigravity", symbol: AgentProvider.agy.symbol,
                                      tint: AgentProvider.agy.tint, provider: .agy) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
+                        HStack(spacing: 1) {
+                            filterChip("All", value: "all")
+                            filterChip("5h", value: "5h")
+                            filterChip("Week", value: "week")
+                        }
+                        .padding(1.5)
+                        .background(Color.white.opacity(0.08), in: Capsule(style: .continuous))
+
                         if checking {
                             ProgressView().controlSize(.mini).scaleEffect(0.65).frame(width: 12, height: 12)
                         } else {
@@ -606,6 +627,23 @@ private struct NotchAgentAgyLimitsCard: View {
             let secs = Int(seconds) % 60
             return "\(minutes)m \(secs)s"
         }
+    }
+
+    private func filterChip(_ label: String, value: String) -> some View {
+        Button {
+            windowFilter = value
+        } label: {
+            Text(label)
+                .font(.system(size: 8.5, weight: windowFilter == value ? .bold : .medium))
+                .foregroundStyle(windowFilter == value ? Color.white : Color.white.opacity(0.55))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(
+                    windowFilter == value ? Color.white.opacity(0.2) : Color.clear,
+                    in: Capsule(style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -750,11 +788,23 @@ private struct NotchAgentLiveCard: View {
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if session.needsApproval {
+                    HStack(spacing: 2) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 8, weight: .bold))
+                        Text("Approval")
+                            .font(.system(size: 8.5, weight: .bold))
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.orange.opacity(0.18), in: Capsule(style: .continuous))
+                }
                 Spacer(minLength: 4)
                 Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
-                    .foregroundStyle(session.provider.tint)
+                    .foregroundStyle(session.needsApproval ? .orange : session.provider.tint)
             }
             // Tokens the agent wrote, as its own window counts them; every
             // call also reads the whole context again, which the tooltip and

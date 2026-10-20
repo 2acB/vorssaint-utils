@@ -659,6 +659,8 @@ final class AgentUsageService: ObservableObject {
                 guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
+            case .needsApproval(let provider, _):
+                guard self.providers.contains(provider) else { return }
             }
             self.events.send(event)
         }
